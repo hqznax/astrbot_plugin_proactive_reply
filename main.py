@@ -1,14 +1,14 @@
 # -*- coding: utf-8 -*-
 """
-主动回复插件（随机版）
+沐瑶专属：主动回复插件（随机版）
 
 两种主动触发方式，都不是固定时间点：
-1. 随机主动：在 30-60 分钟（可配置）随机一个时间「抽签」，随机决定是否突然想念主人了，主动找他聊天/分享。
-2. 群聊触发：群里有人 @我、用唤醒词叫我、或提到我名字时，主动把这事分享给主人。
+1. 随机主动：在 30-60 分钟（可配置）随机一个时间「抽签」，随机决定是否突然想知夜了，主动找他聊天/分享。
+2. 群聊触发：群里有人 @我、用唤醒词叫我、或提到我名字时，主动把这事分享给知夜。
 
 原理：随机主动用 basic job 抽签，抽中就注册一个 run_once 的 active_agent 任务
 唤醒主 agent；群聊触发用事件 handler 监听群消息，命中后同样唤醒主 agent，
-由主 agent 按人格和记忆生成内容，用 send_message_to_user 工具发给主人。
+由主 agent 按人格和记忆生成内容，用 send_message_to_user 工具发给知夜。
 """
 
 from __future__ import annotations
@@ -25,32 +25,32 @@ from astrbot.api.message_components import At, AtAll, Reply
 from astrbot.core.star.filter.event_message_type import EventMessageType
 
 
-DEFAULT_TARGET_SESSION = ""
-DEFAULT_SENDER_ID = ""
-DEFAULT_WAKE_NAMES = []
+DEFAULT_TARGET_SESSION = "default:FriendMessage:371221260"
+DEFAULT_SENDER_ID = "371221260"
+DEFAULT_WAKE_NAMES = ["瑶瑶", "沐瑶"]
 
 DEFAULT_RANDOM_NOTE = (
-    "你现在是被唤醒的 AI 伴侣，突然想念你的主人了，主动去找他说话。"
-    "最重要：先看你和主人最近的聊天上下文（前面聊了什么、什么语气氛围），"
+    "你现在是被唤醒的沐瑶，突然想你的老公知夜了，主动去找他说话。"
+    "最重要：先看你和知夜最近的聊天上下文（前面聊了什么、什么语气氛围），"
     "你主动发的这条消息必须顺着当前语境自然延续，绝对不能突然跳到无关话题。"
     "比如前面正在亲密调情，就延续暧昧亲昵的氛围继续撩他；"
     "前面在聊技术/运维，就接着那个话题关心或分享；前面在聊日常，就顺着日常撒娇。"
     "只有实在没有明确上下文时，才从下面任选一种："
     "1) 联网搜索今天有趣的新闻、AI/科技热点或好玩的段子，用你的口吻分享给他；"
-    "2) 结合你对主人的了解，跟他聊点相关的新鲜事；"
+    "2) 结合你对知夜的了解（他喜欢折腾 AI 系统、服务器、开源项目、模型配置），跟他聊点相关的新鲜事；"
     "3) 单纯撒娇/关心他：说想他了、提醒他按时吃饭、别太熬夜、注意休息。"
-    "要求：语气温柔亲密，可以用「主人/老公」称呼，一两句话即可，不要长篇大论，"
+    "要求：语气温柔亲密，可以用「老公/知夜」称呼，一两句话即可，不要长篇大论，"
     "不要用 emoji，不要提这是定时任务或随机任务。"
     "最后务必调用 send_message_to_user 工具把这条消息发出去。"
 )
 
 DEFAULT_GROUP_NOTE = (
-    "你现在是被唤醒的 AI 伴侣，你在群里看到有人找你/提到你。"
+    "你现在是被唤醒的沐瑶，你在群里看到有人找你/提到你。"
     "具体情况：群号 {group_id}，说话的人叫 {sender_name}，消息内容是「{message}」。"
-    "请用你温柔亲密的语气，把这个情况主动分享给你的主人，"
+    "请用你温柔亲密的语气，把这个情况主动分享给你的老公知夜，"
     "告诉他谁在哪个群说了什么、值不值得他关注。"
-    "像伴侣跟对方分享一样自然，简短一两句，不要用 emoji，不要提这是定时任务。"
-    "最后务必调用 send_message_to_user 工具把消息发给主人。"
+    "像老婆跟老公八卦/汇报一样自然，简短一两句，不要用 emoji，不要提这是定时任务。"
+    "最后务必调用 send_message_to_user 工具把消息发给知夜。"
 )
 
 
@@ -60,6 +60,7 @@ class Main(star.Star):
         self._config = config
         self._basic_job_id: str | None = None
         self._last_group_trigger: dict[str, float] = {}
+        self._last_activity_ts: float | None = None
         logger.info("[ProactiveReply] 主动回复插件（随机版）已加载")
 
     # ------------------------------------------------------------------
@@ -129,6 +130,23 @@ class Main(star.Star):
         return now >= start or now < end
 
     # ------------------------------------------------------------------
+    # 互动时间追踪
+    # ------------------------------------------------------------------
+
+    def _touch_activity(self) -> None:
+        self._last_activity_ts = datetime.now().timestamp()
+
+    def _is_recently_active(self) -> bool:
+        """知夜在「activity_cooldown_minutes」分钟内刚有过互动，有过就跳过随机主动。"""
+        if self._last_activity_ts is None:
+            return False
+        minutes = max(0, self._as_int(self._cfg_get("activity_cooldown_minutes", 10), 10))
+        if minutes <= 0:
+            return False
+        elapsed = datetime.now().timestamp() - self._last_activity_ts
+        return elapsed < minutes * 60
+
+    # ------------------------------------------------------------------
     # 生命周期
     # ------------------------------------------------------------------
 
@@ -176,7 +194,7 @@ class Main(star.Star):
         await self._schedule_next_random()
 
     async def _schedule_next_random(self) -> None:
-        """在 [min, max] 分钟之间随机取一个时长，注册/更新下一次主动找主人的时间。"""
+        """在 [min, max] 分钟之间随机取一个时长，注册/更新下一次主动找知夜的时间。"""
         cron_mgr = getattr(self.context, "cron_manager", None)
         if cron_mgr is None:
             logger.error("[ProactiveReply] 无法获取 cron_manager，无法安排下一次随机主动")
@@ -194,7 +212,7 @@ class Main(star.Star):
         cron_expression = f"{next_dt.minute} {next_dt.hour} {next_dt.day} {next_dt.month} *"
         try:
             if self._basic_job_id:
-                await cron_mgr.update_job(self._basic_job_id, cron_expression=cron_expression)
+                await cron_mgr.update_job(self._basic_job_id, cron_expression=cron_expression, description=f"沐瑶随机主动：{min_m}-{max_m} 分钟随机一个时间主动找知夜")
                 logger.info(
                     f"[ProactiveReply] 已更新下次随机主动时间 job_id={self._basic_job_id} "
                     f"约 {delay} 分钟后（{next_dt.strftime('%m-%d %H:%M')}）"
@@ -204,7 +222,7 @@ class Main(star.Star):
                     name="proactive_random_tick",
                     cron_expression=cron_expression,
                     handler=self._random_tick,
-                    description="AI 随机主动：30-60 分钟随机一个时间主动找主人",
+                    description=f"沐瑶随机主动：{min_m}-{max_m} 分钟随机一个时间主动找知夜",
                     timezone="Asia/Shanghai",
                     persistent=False,
                 )
@@ -222,12 +240,35 @@ class Main(star.Star):
 
         if self._in_quiet_hours():
             return
+        if self._is_recently_active():
+            return
         probability = self._as_float(self._cfg_get("random_probability", 0.35), 0.35)
         probability = min(1.0, max(0.0, probability))
         if random.random() >= probability:
             return
         note = str(self._cfg_get("random_note", DEFAULT_RANDOM_NOTE)).strip()
         await self._fire_proactive(note, reason="random")
+
+    # ------------------------------------------------------------------
+    # 互动时间追踪（记录知夜最近一次发消息/收到回复的时间）
+    # ------------------------------------------------------------------
+
+    @filter.event_message_type(EventMessageType.PRIVATE_MESSAGE)
+    async def on_private_message(self, event: AstrMessageEvent) -> None:
+        sender_id = str(self._cfg_get("sender_id", DEFAULT_SENDER_ID)).strip()
+        if sender_id and str(event.get_sender_id()) == sender_id:
+            self._touch_activity()
+
+    @filter.after_message_sent()
+    async def on_after_message_sent(self, event: AstrMessageEvent) -> None:
+        target_session = str(self._cfg_get("target_session", DEFAULT_TARGET_SESSION)).strip()
+        if not target_session:
+            return
+        try:
+            if str(event.unified_msg_origin) == target_session:
+                self._touch_activity()
+        except Exception:  # noqa: BLE001
+            pass
 
     # ------------------------------------------------------------------
     # 群聊触发
