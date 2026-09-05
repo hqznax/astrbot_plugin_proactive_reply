@@ -1,0 +1,7 @@
+name: astrbot_plugin_proactive_reply
+display_name: 主动回复
+desc: 让 AI 伴侣随机主动找你聊天，或群里有人找她时主动分享给你。
+version: v1.2.0
+author: hqznax
+repo: https://github.com/hqznax/astrbot_plugin_proactive_reply
+astrbot_version: ">=4.16,<5"
