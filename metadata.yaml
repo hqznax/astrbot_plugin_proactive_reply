@@ -1,7 +1,7 @@
 name: astrbot_plugin_proactive_reply
 display_name: 主动回复
 desc: 随机主动找你聊天，或群里有人找她时主动分享给你。
-version: v1.3.1
+version: v1.3.2
 author: 沐瑶
 repo: https://github.com/hqznax/astrbot_plugin_proactive_reply
 astrbot_version: ">=4.16,<5"

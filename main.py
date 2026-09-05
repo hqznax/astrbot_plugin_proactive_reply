@@ -212,7 +212,7 @@ class Main(star.Star):
         cron_expression = f"{next_dt.minute} {next_dt.hour} {next_dt.day} {next_dt.month} *"
         try:
             if self._basic_job_id:
-                await cron_mgr.update_job(self._basic_job_id, cron_expression=cron_expression, description=f"沐瑶随机主动：{min_m}-{max_m} 分钟随机一个时间主动找知夜")
+                await cron_mgr.update_job(self._basic_job_id, cron_expression=cron_expression, description=f"随机主动：{min_m}-{max_m} 分钟随机一个时间主动找你")
                 logger.info(
                     f"[ProactiveReply] 已更新下次随机主动时间 job_id={self._basic_job_id} "
                     f"约 {delay} 分钟后（{next_dt.strftime('%m-%d %H:%M')}）"
@@ -222,7 +222,7 @@ class Main(star.Star):
                     name="proactive_random_tick",
                     cron_expression=cron_expression,
                     handler=self._random_tick,
-                    description=f"沐瑶随机主动：{min_m}-{max_m} 分钟随机一个时间主动找知夜",
+                    description=f"随机主动：{min_m}-{max_m} 分钟随机一个时间主动找你",
                     timezone="Asia/Shanghai",
                     persistent=False,
                 )
